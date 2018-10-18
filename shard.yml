@@ -1,0 +1,24 @@
+name: form_object
+version: 0.1.0
+
+authors:
+  - Roman Kalnytskyi <moranibaca@gmail.com>
+
+crystal: 0.26.1
+
+license: MIT
+
+development_dependencies:
+  factory:
+    github: imdrasil/factory
+    version: "~> 0.1.4"
+  pg:
+    github: will/crystal-pg
+    version: "~> 0.15.0"
+  mysql:
+    github: crystal-lang/crystal-mysql
+    version: "~> 0.5"
+  jennifer:
+    github: imdrasil/jennifer.cr
+    branch: master
+    # version: "~> 0.6.1"

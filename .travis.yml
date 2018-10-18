@@ -1,0 +1,13 @@
+language: crystal
+dist: trusty
+sudo: required
+services:
+  - postgresql
+addons:
+  postgresql: 9.4
+env:
+  global:
+    - DB_USER=postgres
+    - DB_PASSWORD=""
+before_script: make sam db:setup
+script: crystal spec
