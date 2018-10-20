@@ -6,7 +6,7 @@ module FormObject
     getter name : String, source : String, target : String
 
     def initialize(value, @name, @source, @target)
-      super("Can't cast parameter #{name} = #{value} from #{source} to #{target}", nil)
+      super("Can't cast parameter #{name} = \"#{value}\" from #{source} to #{target}", nil)
     end
   end
 end

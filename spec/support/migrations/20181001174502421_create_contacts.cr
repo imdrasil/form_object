@@ -5,7 +5,7 @@ class CreateContacts < Jennifer::Migration::Base
       t.string :name, {:size => 30}
       t.integer :age
       t.integer :tags, {:array => true}
-      t.decimal :ballance
+      t.decimal :balance
       t.field :gender, :gender_enum
       t.timestamps true
     end

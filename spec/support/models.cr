@@ -3,28 +3,19 @@ class Contact < Jennifer::Model::Base
 
   mapping(
     id:          Primary32,
-    name:        String,
-    ballance:    PG::Numeric?,
+    name:        String?,
+    balance:     PG::Numeric?,
     age:         {type: Int32, default: 10},
     gender:      {type: String?, default: "male"},
-    description: String?,
+    tags:        Array(Int32)?,
     created_at:  Time?,
-    updated_at:  Time?,
-    user_id:     Int32?,
-    tags:        Array(Int32)?
+    updated_at:  Time?
   )
 
   has_one :addresses, Address, inverse_of: :contact
 
   validates_inclusion :age, 13..75
   validates_length :name, minimum: 1
-  validates_with_method :name_check
-
-  def name_check
-    if @description && @description.not_nil!.size > 10
-      errors.add(:description, "Too large description")
-    end
-  end
 end
 
 class Address < Jennifer::Model::Base

@@ -5,7 +5,6 @@ class ContactFactory < Factory::Jennifer::Base
 
   attr :name, "Deepthi"
   attr :age, 28
-  attr :description, nil
   attr :gender, "female"
 end
 

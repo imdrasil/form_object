@@ -7,8 +7,9 @@ module FormObject
 
     abstract def resource
     abstract def validate!
-    abstract def sync
+    abstract def save
 
+    private abstract def persist
     private abstract def match_key?(key, expected_key, array)
     private abstract def parse_form_data_part(key : String, value : HTTP::FormData::Part)
     private abstract def parse_string_parameter(key : String, value : String)
@@ -21,11 +22,11 @@ module FormObject
 
     def save
       sync
-      resource.save
+      persist
     end
 
-    def save
-      yield self
+    private def match_key?(key, expected_key, array : Bool = false)
+      "#{expected_key}#{array ? "[]" : ""}" == key
     end
 
     private def parse(request)
@@ -86,7 +87,14 @@ module FormObject
       @coercer = coercer
     end
 
+    private def persist
+      resource.save
+    end
+
     macro inherited
+      # :nodoc:
+      MAPPING = {} of Symbol => NamedTuple
+
       ::Jennifer::Model::Validation.inherited_hook
 
       # :nodoc:
@@ -95,6 +103,7 @@ module FormObject
       end
 
       macro finished
+        mapping_finished_hook
         ::Jennifer::Model::Validation.finished_hook
       end
     end
