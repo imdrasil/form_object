@@ -1,6 +1,19 @@
 module FormObject
   module Mapping
-    macro path(value)
+    macro json_path(value)
+      # :nodoc:
+      JSON_PATH = {{value}}
+
+      private def match_json_path?(depth : Int)
+        depth + 1 == JSON_PATH.size
+      end
+
+      private def current_json_key(depth)
+        JSON_PATH[depth + 1]
+      end
+    end
+
+    macro path(value, json_path = nil)
       private def match_key?(key, expected_key, array = false)
         "{{value.id}}[#{expected_key}]#{array ? "[]" : ""}" == key
       end
@@ -141,7 +154,7 @@ module FormObject
         private def parse_json_parameter(key : String, pull : JSON::PullParser)
           case
           {% for key, value in mapping %}
-            when match_key?(key, {{key.id.stringify}})
+            when match_json_key?(key, {{key.id.stringify}})
               self.{{key.id}} = pull
           {% end %}
           end

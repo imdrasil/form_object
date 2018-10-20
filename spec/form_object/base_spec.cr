@@ -24,6 +24,15 @@ module H::Base
     attr :gender, String, virtual: true
   end
 
+  class ContactForNonRootJSONForm < CF
+    json_path %w(contact data)
+
+    attr :name, String
+    attr :sex, String, origin: :gender
+    attr :count, Int32, virtual: true
+    attr :_deleted, Bool?, virtual: true
+  end
+
   def self.valid_data
     form_data do |builder|
       builder.field("name", "zxczx")
@@ -173,6 +182,50 @@ module H::Base
           f = ContactForm.new(c)
           r = json_data({
             name: "name",
+            sex: "male",
+            count: 3,
+            _deleted: false
+          })
+
+          f.verify(r)
+          f.name.should eq("name")
+          f.sex.should eq("male")
+          f.count.should eq(3)
+          f._deleted.should be_false
+        end
+
+        it "parses non-root object" do
+          c = Factory.build_contact
+          f = ContactForNonRootJSONForm.new(c)
+          r = json_data({
+            links: {} of String => String,
+            contact: {
+              links: %w(asd),
+              data: {
+                name: "name",
+                sex: "male",
+                count: 3,
+                _deleted: false
+              }
+            },
+            address: {
+              str: "asd"
+            }
+          })
+
+          f.verify(r)
+          f.name.should eq("name")
+          f.sex.should eq("male")
+          f.count.should eq(3)
+          f._deleted.should be_false
+        end
+
+        it "ignores extra fields" do
+          c = Factory.build_contact
+          f = ContactForm.new(c)
+          r = json_data({
+            name: "name",
+            second_name: "Arsen",
             sex: "male",
             count: 3,
             _deleted: false
