@@ -33,6 +33,14 @@ module H::Base
     attr :_deleted, Bool?, virtual: true
   end
 
+  class ParentContactForm < CF
+    attr :name, String
+  end
+
+  class ChildContactForm < ParentContactForm
+    attr :gender, String
+  end
+
   def self.valid_data
     form_data do |builder|
       builder.field("name", "zxczx")
@@ -236,6 +244,18 @@ module H::Base
           f.sex.should eq("male")
           f.count.should eq(3)
           f._deleted.should be_false
+        end
+      end
+
+      describe "inheritance" do
+        it do
+          c = Factory.build_contact
+          f = ChildContactForm.new(c)
+          data = form_data([["name", "name"], %w(gender gender)])
+          f.verify(data)
+
+          f.gender.should eq("gender")
+          f.name.should eq("name")
         end
       end
     end

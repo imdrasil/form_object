@@ -1,5 +1,16 @@
 module FormObject
   module Mapping
+    # Specifies path to the root of defined object.
+    #
+    # *value* - array of exact json keys.
+    #
+    # ```
+    # class AdditionalInfoForm < FormObject::Base(AdditionalInfo)
+    #   json_path %w(additionalInfo data)
+    #
+    #   # ...
+    # end
+    # ```
     macro json_path(value)
       # :nodoc:
       JSON_PATH = {{value}}
@@ -13,12 +24,52 @@ module FormObject
       end
     end
 
-    macro path(value, json_path = nil)
+    # Specifies the root name for the form data or URL parameters.
+    #
+    # *value* - string representation of root name; if it is not specified all fields will
+    # be retrieved from the root scope.
+    #
+    # ```
+    # class AdditionalInfoForm < FormObject::Base(AdditionalInfo)
+    #   path "additional_info[data]"
+    #
+    #   # ...
+    # end
+    # ```
+    macro path(value)
       private def match_key?(key, expected_key, array = false)
         "{{value.id}}[#{expected_key}]#{array ? "[]" : ""}" == key
       end
     end
 
+    # Specifies attribute being parsed from a given request.
+    #
+    # Options:
+    # * *name* - form object attribute name
+    # * *type* - attribute type; to define nilable field use `Type?` notation
+    # * *origin* - related model attribute name (by default it is *name*)
+    # * *virtual* - marks attribute as virtual - it will be retrieved and validated but no synchronized with model
+    # (`false` by default)
+    #
+    # ```
+    # class ContactForm < FormObject::Base(Contact)
+    #   attr :name, String
+    #   attr :sex, String, origin: :gender
+    #   attr :count, Int32, virtual: true
+    #   attr :_deleted, Bool?, virtual: true
+    # end
+    # ```
+    #
+    # Any defined field of form object is defined as nilable. For a non-nil field `#attribute` method
+    # performs `#not_nil!` check.
+    #
+    # Defines next methods for field with name `attribute`:
+    #
+    # * `#attribute` - getter with `not_nil!` check for non-nil field
+    # * `#attribute?` - getter without `not_nil!` check
+    # * `#append_attribute(String)` - coerces given value and adds to attribute (if it is an array)
+    # * `#attribute=(Type)` - setter
+    # * `#attribute=(String)` - coerces given value and sets to attribute
     macro attr(name, type, origin = nil, virtual = false)
       {%
         options = {
@@ -87,6 +138,7 @@ module FormObject
       end
     end
 
+    # :nodoc:
     macro mapping_finished_hook
       {% mapping = @type.constant("MAPPING") %}
 
@@ -162,7 +214,7 @@ module FormObject
       {% end %}
     end
 
-    # TODO: finish
+    # TODO: Future feature
     macro object(name, klass)
       {% klass_name = "#{name.id.camelcase}Form".id %}
 

@@ -1,7 +1,40 @@
 module FormObject
+  # Base form object module.
+  #
+  # Include this in the first module that gets further included.
+  #
+  # ```
+  # module ContactName
+  #   include FormObject::Module
+  #
+  #   attr :name, String
+  # end
+  #
+  # module ContactGender
+  #   include FormObject::Module
+  #
+  #   attr :sex, String, origin: :gender
+  # end
+  #
+  # module ContactFields
+  #   include ContactName
+  #   include ContactGender
+  #
+  #   attr :count, Int32, virtual: true
+  # end
+  #
+  # class ContactWithModule < FormObject::Base(Contact)
+  #   include ContactFields
+  #
+  #   attr :age, Int32?
+  # end
+  # ```
+  #
+  # Only attribute definition is supported in shared modules.
   module Module
     include Mapping
 
+    # :nodoc:
     macro populate_module(type)
       {%
         source_mapping = type.resolve.constant("MAPPING")
@@ -24,6 +57,7 @@ module FormObject
       {% end %}
     end
 
+    # :nodoc:
     macro populate_attributes
       macro included
         {% verbatim do %}
