@@ -17,11 +17,11 @@ module FormObject
       # :nodoc:
       JSON_PATH = {{value}}
 
-      private def match_json_path?(depth : Int)
+      private def self.match_json_path?(depth : Int)
         depth + 1 == JSON_PATH.size
       end
 
-      private def current_json_key(depth)
+      private def self.current_json_key(depth)
         JSON_PATH[depth + 1]
       end
     end
@@ -39,11 +39,7 @@ module FormObject
     # end
     # ```
     macro path(value)
-      private def match_key?(key, expected_key, array = false)
-        "{{value.id}}[#{expected_key}]#{array ? "[]" : ""}" == key
-      end
-
-      private def match_root(scanner)
+      private def self.match_root(scanner)
         root = Regex.new(Regex.escape("{{value.id}}"))
         return if scanner.scan(root).nil?
         1
@@ -161,11 +157,11 @@ module FormObject
           {% end %}
         end
 
-        private def parse_form_data_part(key : String, value : HTTP::FormData::Part)
-          parse_string_parameter(key, value)
+        private def self.parse_form_data_part(key : String, value : HTTP::FormData::Part, context)
+          parse_string_parameter(key, value, context)
         end
 
-        private def parse_string_parameter(key : String, value)
+        private def self.parse_string_parameter(key : String, value, context)
           scanner = StringScanner.new(key)
           depth = match_root(scanner)
           return if depth.nil?
@@ -176,26 +172,26 @@ module FormObject
             when {{_key}}
             {% if value[:array] %}
               return unless read_array_suffix(scanner)
-              @current_context.append_field({{_key}}, self.class.coerce_{{key.id}}(value).as({{value[:base_type].id}}))
+              context.append_field({{_key}}, coerce_{{key.id}}(value).as({{value[:base_type].id}}))
             {% else %}
-              @current_context.set_field({{_key}}, self.class.coerce_{{key.id}}(value).as({{value[:type].id}}))
+              context.set_field({{_key}}, coerce_{{key.id}}(value).as({{value[:type].id}}))
             {% end %}
           {% end %}
           end
         end
 
-        private def parse_json_parameter(key : String, pull : JSON::PullParser)
+        private def self.parse_json_parameter(key : String, pull : JSON::PullParser, context)
           case
           {% for key, value in mapping %}
           {% _key = key.id.stringify %}
             when match_json_key?(key, {{_key}})
-            @current_context.set_field({{_key}}, self.class.coerce_{{key.id}}(pull).as({{value[:type].id}}))
+            context.set_field({{_key}}, coerce_{{key.id}}(pull).as({{value[:type].id}}))
           {% end %}
           end
         end
 
-        private def assign_fields
-          @current_context.each_field do |field, value|
+        private def assign_fields(context)
+          context.each_field do |field, value|
             case field
             {% for key, value in mapping %}
               {% _key = key.id.stringify %}

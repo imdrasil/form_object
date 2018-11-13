@@ -12,6 +12,16 @@ module FormObject
   abstract class AbstractForm
     include Mapping
 
+    module ClassMethods
+      private abstract def match_root(scanner)
+      private abstract def parse_string_parameter(key, value, context)
+      private abstract def parse_form_data_part(key, value, context)
+      private abstract def parse_json_parameter(key, value, context)
+      private abstract def match_json_key?(key, expected_key)
+    end
+
+    extend ClassMethods
+
     # Returns whether form object is valid.
     abstract def valid?
 
@@ -21,20 +31,11 @@ module FormObject
     # Persists resource.
     abstract def persist
 
-    private abstract def assign_fields
-    private abstract def match_root(scanner)
-    private abstract def match_key?(key, expected_key, array)
-    private abstract def match_json_path?(depth : Int)
-    private abstract def current_json_key(depth)
-    private abstract def parse_form_data_part(key : String, value : HTTP::FormData::Part)
-    private abstract def parse_string_parameter(key : String, value : String)
-    private abstract def parse_json_parameter(key : String, pull : JSON::PullParser)
+    private abstract def assign_fields(context)
 
     def self.coercer
       @@coercer ||= Coercer.new
     end
-
-    @current_context = Context.new
 
     def initialize
     end
@@ -50,11 +51,11 @@ module FormObject
       persist
     end
 
-    private def match_root(_scanner)
+    private def self.match_root(_scanner)
       0
     end
 
-    private def read_field(scanner, depth : Int32 = 1)
+    private def self.read_field(scanner, depth : Int32 = 1)
       if depth == 0
         scanner.scan(/[\w\d_-]+/)
       else
@@ -65,80 +66,82 @@ module FormObject
       end
     end
 
-    private def read_array_suffix(scanner)
+    private def self.read_array_suffix(scanner)
       !scanner.scan(/\[\]/).nil?
     end
 
-    private def match_key?(key, expected_key, array : Bool = false)
-      "#{expected_key}#{array ? "[]" : ""}" == key
-    end
-
-    private def match_json_path?(depth)
+    private def self.match_json_path?(depth)
       depth == -1
     end
 
-    private def match_json_key?(key, expected_key)
+    private def self.match_json_key?(key, expected_key)
       expected_key == key
     end
 
-    private def current_json_key(depth)
+    private def self.current_json_key(depth)
       ""
     end
 
-    private def parse(request)
-      @current_context.clear
-      read_query_params(request)
+    def self.parse(request)
+      context = Context.new
+      read_query_params(request, context)
 
       case request.headers["Content-Type"]?
       when /^application\/x-www-form-urlencoded/
-        read_url_encoded_form(request)
+        read_url_encoded_form(request, context)
       when /^multipart\/form-data/
-        read_multipart_form(request)
+        read_multipart_form(request, context)
       when /^application\/json/
-        read_json_form(request)
+        read_json_form(request, context)
       end
-      assign_fields
+      context
     end
 
-    private def read_query_params(request)
+    private def parse(request)
+      context = self.class.parse(request)
+
+      assign_fields(context)
+    end
+
+    def self.read_query_params(request, context)
       request.query_params.each do |key, value|
-        parse_string_parameter(key, value)
+        parse_string_parameter(key, value, context)
       end
     end
 
-    private def read_url_encoded_form(request)
+    def self.read_url_encoded_form(request, context)
       return if request.body.nil? || request.content_length.nil?
       HTTP::Params.parse(request.body.not_nil!.gets_to_end).each do |key, value|
-        parse_string_parameter(key, value)
+        parse_string_parameter(key, value, context)
       end
     end
 
-    private def read_multipart_form(request)
+    def self.read_multipart_form(request, context)
       return if request.body.nil? || request.content_length.nil?
       HTTP::FormData.parse(request) do |part|
-        parse_form_data_part(part.name, part)
+        parse_form_data_part(part.name, part, context)
       end
     end
 
-    private def read_json_form(request)
+    def self.read_json_form(request, context)
       body = request.body.to_s
       pull = JSON::PullParser.new(body)
 
-      go_deep_json(pull)
+      go_deep_json(pull, context)
     rescue JSON::ParseException
     end
 
-    private def go_deep_json(pull, depth = -1)
+    private def self.go_deep_json(pull, context, depth = -1)
       if match_json_path?(depth)
         pull.read_begin_object
         while pull.kind != :end_object
           key = pull.read_object_key
 
-          parse_json_parameter(key, pull)
+          parse_json_parameter(key, pull, context)
         end
       else
         key = current_json_key(depth)
-        pull.on_key(key) { go_deep_json(pull, depth + 1) }
+        pull.on_key(key) { go_deep_json(pull, context, depth + 1) }
       end
     end
 
