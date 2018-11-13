@@ -1,5 +1,6 @@
 require "./mapping"
 require "./coercer"
+require "./context"
 
 module FormObject
   # Base abstract form object class.
@@ -20,6 +21,8 @@ module FormObject
     # Persists resource.
     abstract def persist
 
+    private abstract def assign_fields
+    private abstract def match_root(scanner)
     private abstract def match_key?(key, expected_key, array)
     private abstract def match_json_path?(depth : Int)
     private abstract def current_json_key(depth)
@@ -27,9 +30,13 @@ module FormObject
     private abstract def parse_string_parameter(key : String, value : String)
     private abstract def parse_json_parameter(key : String, pull : JSON::PullParser)
 
-    private getter coercer : Coercer
+    def self.coercer
+      @@coercer ||= Coercer.new
+    end
 
-    def initialize(@coercer = Coercer.new)
+    @current_context = Context.new
+
+    def initialize
     end
 
     # Parses given request data, assigns them and validates.
@@ -41,6 +48,25 @@ module FormObject
     def save
       sync
       persist
+    end
+
+    private def match_root(_scanner)
+      0
+    end
+
+    private def read_field(scanner, depth : Int32 = 1)
+      if depth == 0
+        scanner.scan(/[\w\d_-]+/)
+      else
+        return if scanner.scan(/\[/).nil?
+        field = scanner.scan(/[\w\d_-]+/)
+        return if field.nil? || scanner.scan(/\]/).nil?
+        field
+      end
+    end
+
+    private def read_array_suffix(scanner)
+      !scanner.scan(/\[\]/).nil?
     end
 
     private def match_key?(key, expected_key, array : Bool = false)
@@ -60,6 +86,7 @@ module FormObject
     end
 
     private def parse(request)
+      @current_context.clear
       read_query_params(request)
 
       case request.headers["Content-Type"]?
@@ -70,6 +97,7 @@ module FormObject
       when /^application\/json/
         read_json_form(request)
       end
+      assign_fields
     end
 
     private def read_query_params(request)

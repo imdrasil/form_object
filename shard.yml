@@ -20,5 +20,5 @@ development_dependencies:
     version: "~> 0.5"
   jennifer:
     github: imdrasil/jennifer.cr
-    branch: master
+    branch: release/0.7.0
     # version: "~> 0.6.1"

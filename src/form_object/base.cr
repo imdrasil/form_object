@@ -38,10 +38,9 @@ module FormObject
     end
 
     getter resource : T
-    private getter coercer : Coercer
 
-    def initialize(@resource, coercer = Coercer.new)
-      super(coercer)
+    def initialize(@resource)
+      super()
     end
 
     def persist

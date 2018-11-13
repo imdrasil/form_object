@@ -1,3 +1,5 @@
+require "string_scanner"
+
 module FormObject
   module Mapping
     # Specifies path to the root of defined object.
@@ -39,6 +41,12 @@ module FormObject
     macro path(value)
       private def match_key?(key, expected_key, array = false)
         "{{value.id}}[#{expected_key}]#{array ? "[]" : ""}" == key
+      end
+
+      private def match_root(scanner)
+        root = Regex.new(Regex.escape("{{value.id}}"))
+        return if scanner.scan(root).nil?
+        1
       end
     end
 
@@ -102,39 +110,19 @@ module FormObject
       @{{name.id}} : {{options[:type]}}{{"?".id unless options[:null]}}
 
       def {{name.id}}
-        @{{name.id}}{{".not_nil!".id unless options[:null]}}
-      end
-
-      def {{name.id}}?
         @{{name.id}}
       end
 
-      {% if options[:array] %}
-        def append_{{name.id}}(value : String)
-          (@{{name.id}} ||= [] of {{options[:base_type]}}) << coercer.coerce(value, {{options[:base_type].stringify}}).as({{options[:base_type]}})
-        end
-
-        def append_{{name.id}}(value : HTTP::FormData::Part)
-          append_{{name.id}}(value.body.gets_to_end)
-        end
-      {% end %}
+      def {{name.id}}!
+        @{{name.id}}{{".not_nil!".id unless options[:null]}}
+      rescue e : Exception
+        raise FormObject::NotAssignedError.new({{name.id.stringify}})
+      end
 
       setter :{{name.id}}
 
       def {{name.id}}=(value : String)
-        @{{name.id}} = coercer.coerce(value, {{options[:stringified_type]}}).as({{options[:type].id}})
-      rescue ArgumentError
-        raise ::FormObject::TypeCastError.new(value, {{name.id.stringify}}, value.class.name, {{options[:stringified_type]}})
-      end
-
-      def {{name.id}}=(value : HTTP::FormData::Part)
-        self.{{name.id}} = value.body.gets_to_end
-      end
-
-      def {{name.id}}=(pull : JSON::PullParser)
-        @{{name.id}} = {{options[:type]}}.new(pull)
-      rescue ex : JSON::ParseException
-        raise ::FormObject::TypeCastError.new(pull.read_raw, {{name.id.stringify}}, pull.read_raw.class.name, {{options[:type].stringify}})
+        @{{name.id}} = self.class.coerce_{{name.id}}(value).as({{options[:type].id}})
       end
     end
 
@@ -168,36 +156,29 @@ module FormObject
         def sync
           {% for field, value in mapping %}
             {% unless value[:virtual] %}
-              resource.{{value[:origin].id}} = {{field.id}}?
+              resource.{{value[:origin].id}} = {{field.id}}
             {% end %}
           {% end %}
         end
 
         private def parse_form_data_part(key : String, value : HTTP::FormData::Part)
-          case
-          {% for key, value in mapping %}
-            {% _key = key.id.stringify %}
-            {% if value[:array] %}
-              when match_key?(key, {{_key}}, true)
-                append_{{key.id}}(value)
-            {% else %}
-              when match_key?(key, {{_key}})
-                self.{{key.id}} = value
-            {% end %}
-          {% end %}
-          end
+          parse_string_parameter(key, value)
         end
 
-        private def parse_string_parameter(key : String, value : String)
-          case
+        private def parse_string_parameter(key : String, value)
+          scanner = StringScanner.new(key)
+          depth = match_root(scanner)
+          return if depth.nil?
+          field = read_field(scanner, depth)
+          case field
           {% for key, value in mapping %}
             {% _key = key.id.stringify %}
+            when {{_key}}
             {% if value[:array] %}
-              when match_key?(key, {{_key}}, true)
-                append_{{key.id}}(value)
+              return unless read_array_suffix(scanner)
+              @current_context.append_field({{_key}}, self.class.coerce_{{key.id}}(value).as({{value[:base_type].id}}))
             {% else %}
-              when match_key?(key, {{_key}})
-                self.{{key.id}} = value
+              @current_context.set_field({{_key}}, self.class.coerce_{{key.id}}(value).as({{value[:type].id}}))
             {% end %}
           {% end %}
           end
@@ -206,11 +187,46 @@ module FormObject
         private def parse_json_parameter(key : String, pull : JSON::PullParser)
           case
           {% for key, value in mapping %}
-            when match_json_key?(key, {{key.id.stringify}})
-              self.{{key.id}} = pull
+          {% _key = key.id.stringify %}
+            when match_json_key?(key, {{_key}})
+            @current_context.set_field({{_key}}, self.class.coerce_{{key.id}}(pull).as({{value[:type].id}}))
           {% end %}
           end
         end
+
+        private def assign_fields
+          @current_context.each_field do |field, value|
+            case field
+            {% for key, value in mapping %}
+              {% _key = key.id.stringify %}
+              when {{_key}}
+              {% if value[:array] %}
+                self.{{key.id}} = Ifrit.typed_array_cast(value.as(Array), {{value[:base_type].id}})
+              {% else %}
+                self.{{key.id}} = value.as({{value[:type].id}})
+              {% end %}
+            {% end %}
+            end
+          end
+        end
+
+        {% for name, options in mapping %}
+          def self.coerce_{{name.id}}(value : String)
+            coercer.coerce(value, {{options[:stringified_type]}})
+          rescue ArgumentError
+            raise ::FormObject::TypeCastError.new(value, {{name.id.stringify}}, value.class.name, {{options[:stringified_type]}})
+          end
+
+          def self.coerce_{{name.id}}(value : HTTP::FormData::Part)
+            coerce_{{name.id}}(value.body.gets_to_end)
+          end
+
+          def self.coerce_{{name.id}}(pull : JSON::PullParser)
+            {{options[:type]}}.new(pull)
+          rescue ex : JSON::ParseException
+            raise ::FormObject::TypeCastError.new(pull.read_raw, {{name.id.stringify}}, pull.read_raw.class.name, {{options[:type].stringify}})
+          end
+        {% end %}
       {% end %}
     end
 

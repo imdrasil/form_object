@@ -53,20 +53,20 @@ module H::Mapping
     end
 
     describe ".attr" do
-      describe "#attribute" do
+      describe "#attribute!" do
         it "performs nil assertion" do
           c = Factory.build_contact(name: nil)
           data = form_data([["sex", ""]])
           f = ContactForm.new(c)
           f.verify(data)
 
-          expect_raises(Exception, "Nil assertion failed") do
-            f.name
+          expect_raises(FormObject::NotAssignedError) do
+            f.name!
           end
         end
       end
 
-      describe "#attribute?" do
+      describe "#attribute" do
         it "returns value as is" do
           c = Factory.build_contact(name: nil)
           data = form_data([
@@ -75,7 +75,7 @@ module H::Mapping
           f = ContactForm.new(c)
           f.verify(data)
 
-          f.name?.should be_nil
+          f.name.should be_nil
         end
       end
 

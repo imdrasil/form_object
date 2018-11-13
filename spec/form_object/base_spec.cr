@@ -85,7 +85,7 @@ module H::Base
         c = Factory.build_contact
         f = ContactWithVirtualRealField.new(c)
 
-        f.gender?.should be_nil
+        f.gender.should be_nil
       end
     end
 

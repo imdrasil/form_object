@@ -9,4 +9,10 @@ module FormObject
       super("Can't cast parameter #{name} = \"#{value}\" from #{source} to #{target}", nil)
     end
   end
+
+  class NotAssignedError < BaseError
+    def initialize(value)
+      super("Value of #{value} is nil but expected to be set.")
+    end
+  end
 end
