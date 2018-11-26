@@ -15,4 +15,7 @@ module FormObject
       super("Value of #{value} is nil but expected to be set.")
     end
   end
+
+  class SkipException < Exception
+  end
 end

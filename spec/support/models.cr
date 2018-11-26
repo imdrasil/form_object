@@ -12,7 +12,8 @@ class Contact < Jennifer::Model::Base
     updated_at:  Time?
   )
 
-  has_one :addresses, Address, inverse_of: :contact
+  has_one :address, Address, inverse_of: :contact
+  has_many :addresses, Address, inverse_of: :contact
 
   validates_inclusion :age, 13..75
   validates_length :name, minimum: 1
@@ -22,18 +23,10 @@ class Address < Jennifer::Model::Base
   with_timestamps
 
   mapping(
-    # id: Primary32,
-    # main: Bool,
-    # street: String,
-    # contact_id: Int32?,
-    # details: JSON::Any?,
-    # created_at: Time?,
-    # updated_at: Time?
     id: Primary32,
     main: { type: Bool, default: true },
     street: String?,
     contact_id: Int32?,
-    details: JSON::Any?,
     created_at: Time?,
     updated_at: Time?
   )

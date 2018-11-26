@@ -44,8 +44,13 @@ module FormObject
     end
 
     def persist
-      resource.save
+      resource.save.tap do |state|
+        next unless state
+        persist_nested
+      end
     end
+
+    def persist_nested; end
 
     macro inherited
       # :nodoc:

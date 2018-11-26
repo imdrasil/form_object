@@ -14,7 +14,7 @@ module FormObject
 
     module ClassMethods
       private abstract def match_root(scanner)
-      private abstract def parse_string_parameter(key, value, context)
+      abstract def parse_string_parameter(key, value, context)
       private abstract def parse_form_data_part(key, value, context)
       private abstract def parse_json_parameter(key, value, context)
       private abstract def match_json_key?(key, expected_key)
@@ -31,7 +31,7 @@ module FormObject
     # Persists resource.
     abstract def persist
 
-    private abstract def assign_fields(context)
+    abstract def assign_fields(context)
 
     def self.coercer
       @@coercer ||= Coercer.new
@@ -49,6 +49,10 @@ module FormObject
     def save
       sync
       persist
+    end
+
+    def skip
+      raise SkipException.new
     end
 
     private def self.match_root(_scanner)
@@ -104,14 +108,14 @@ module FormObject
     end
 
     def self.read_query_params(request, context)
-      request.query_params.each do |key, value|
+      HTTP::Params.parse(URI.parse(request.resource).query || "") do |key, value|
         parse_string_parameter(key, value, context)
       end
     end
 
     def self.read_url_encoded_form(request, context)
       return if request.body.nil? || request.content_length.nil?
-      HTTP::Params.parse(request.body.not_nil!.gets_to_end).each do |key, value|
+      HTTP::Params.parse(request.body.not_nil!.gets_to_end) do |key, value|
         parse_string_parameter(key, value, context)
       end
     end
@@ -131,17 +135,29 @@ module FormObject
     rescue JSON::ParseException
     end
 
-    private def self.go_deep_json(pull, context, depth = -1)
-      if match_json_path?(depth)
-        pull.read_begin_object
-        while pull.kind != :end_object
-          key = pull.read_object_key
+    private def self.parse_form_data_part(key : String, value : HTTP::FormData::Part, context)
+      parse_string_parameter(key, value, context)
+    end
 
-          parse_json_parameter(key, pull, context)
-        end
+    def self.go_deep_json(pull, context, depth = -1)
+      if match_json_path?(depth)
+        parse_json_object(pull, context)
       else
         key = current_json_key(depth)
         pull.on_key(key) { go_deep_json(pull, context, depth + 1) }
+      end
+    end
+
+    def self.parse_json_object(pull, context)
+      pull.read_object do |field|
+        parse_json_parameter(field, pull, context)
+      end
+    end
+
+    def self.parse_json_array(pull, context_collection)
+      pull.read_array do
+        context = context_collection.next_object
+        parse_json_object(pull, context)
       end
     end
 
