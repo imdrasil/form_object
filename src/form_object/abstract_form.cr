@@ -87,6 +87,9 @@ module FormObject
     end
 
     def self.parse(request)
+      body = request.body
+      body.seek(0) if body
+
       context = Context.new
       read_query_params(request, context)
 

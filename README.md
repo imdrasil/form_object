@@ -25,6 +25,8 @@ require "form_object"
 require "form_object/coercer/pg" # if you are going to use PG::Numeric
 ```
 
+Also it is important to notice that `form_object` modifies `HTTP::Request` core class to store body in private variable `@cached_body : IO::Memory?` of maximum size 1 GB. This is done because to allow request body multiple reading.
+
 ### Defining Form
 
 Forms are defined in the separate classes. Often (but not necessary) these classes are pretty similar to related models:

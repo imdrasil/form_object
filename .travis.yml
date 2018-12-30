@@ -9,5 +9,7 @@ env:
   global:
     - DB_USER=postgres
     - DB_PASSWORD=""
-before_script: make sam db:setup
+before_script:
+  - cp ./spec/support/database.yml.example ./spec/support/database.yml
+  - make sam db:setup
 script: crystal spec
