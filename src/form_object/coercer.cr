@@ -2,8 +2,8 @@ module FormObject
   class Coercer
     def coerce(value : String, str_class : String)
       case str_class
-      when /Array/
-        to_array(value, str_class)
+      # when /Array/
+      #   to_array(value, str_class)
       when /String/
         to_s(value)
       when /Int16/

@@ -1,0 +1,7 @@
+test:
+  host: localhost
+  migration_files_path: "./spec/support/migrations"
+  db: form_object_test
+  adapter: postgres
+  user: developer
+  password: 1qazxsw2

@@ -25,6 +25,8 @@ require "form_object"
 require "form_object/coercer/pg" # if you are going to use PG::Numeric
 ```
 
+Also it is important to notice that `form_object` modifies `HTTP::Request` core class to store body in private variable `@cached_body : IO::Memory?` of maximum size 1 GB. This is done because to allow request body multiple reading.
+
 ### Defining Form
 
 Forms are defined in the separate classes. Often (but not necessary) these classes are pretty similar to related models:
@@ -53,6 +55,107 @@ f.errors # Jennifer::Model::Errors
 ```
 
 Resource model translation messages are used for the form.
+
+#### Nesting
+
+To define nested object use `.object` macro:
+
+```crystal
+class AddressForm < FormObject::Base(Address)
+  attr :street, Address
+end
+
+class ContactForm < FormObject::Base(Contact)
+  object :address, Address
+end
+```
+
+For collection use `.collection` macro.
+
+##### Populators
+
+In `#verify`, nested hash is passed. Form object by default will try to match nested hashes to the nested forms. But sometimes the incoming hash and the existing object graph are not matching 1-to-1. That's where populators will help you.
+
+You have to declare a populator when the form has to deserialize nested input. ATM populator may be only a method name.
+
+Populator is called only if an incoming part for particular object is present.
+
+```crystal
+# request with { addresses: [{ :street => "Some street" }]} payload
+form.verify(request) # will call populator once
+# request with { addresses: [] of String} payload
+form.verify(request) # will not call populator
+```
+
+Populator for collection is executed for every collection part in the incoming hash.
+
+```crystal
+class ContactForm < FormObject::Base(Contact)
+  collection :addresses, Address, populator: :address_populator
+
+  def address_populator(collection, index, **opts)
+    if item = collection[index]?
+      item
+    else
+      item = AddressForm.new(Address.new({contact_id: resource.id}))
+      collection << item
+      item
+    end
+  end
+```
+
+This populator checks if a nested form is already existing by using `collection[index]?`. While the `index` argument represents where we are in the incoming array traversal, `collection` is identical to `self.addresses`.
+
+It is very important that each populator invocation returns the *form* not the model.
+
+##### Delete
+
+Populators can not only create, but also destroy. Let's say the following input is passed in.
+
+```crystal
+# request with the { addresses: [{:street => "Street", :id => 2, :_delete => "1" }] } payload
+form.verify(request)
+```
+
+You can implement your own deletion:
+
+```crystal
+class ContactForm < FormObject::Base(Contact)
+  collection :addresses, Address, populator: :address_populator
+
+  property ids_to_destroy : Array(Int32)
+
+  def address_populator(context, **opts)
+    item = addresses.find { |address| address.id == context["id"] }
+
+    if context["_delete"]
+      addresses.delete(item)
+      ids_to_destroy << item.id
+      skip
+    end
+
+    if item
+      item
+    else
+      item = AddressForm.new(Address.new)
+      collection << item
+      item
+    end
+  end
+
+  def persist
+    super.tap do |result|
+      next unless result
+      ids = ids_to_destroy
+      Address.where { _id.in(ids) }.destroy
+    end
+  end
+end
+```
+
+##### Skip
+
+Populators can skip processing of a part by invoking `#skip`. This method raises `FormObject::SkipException` which makes form object to ignore particular part.
 
 #### Reusability
 

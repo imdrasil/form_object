@@ -5,6 +5,7 @@
 *.dwarf
 
 /spec/support/structure.sql
+/spec/support/database.yml
 
 # Libraries don't need dependency lock
 # Dependencies will be locked in application that uses them

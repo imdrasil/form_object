@@ -50,7 +50,11 @@ module FormObject
               stringified_type: value[:stringified_type],
               null: value[:null],
               array: value[:array],
-              defined: value[:defined]
+              defined: value[:defined],
+              base_type: value[:base_type],
+              nested: value[:nested],
+              save: value[:save],
+              populator: value[:populator]
             }
           %}
         {% end %}

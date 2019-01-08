@@ -5,9 +5,9 @@ require "../../../src/form_object/coercer/pg"
 describe FormObject::Coercer do
   coercer = FormObject::Coercer.new
 
-  describe "#coerce" do
-    it { coercer.coerce("1", "Numeric?").is_a?(PG::Numeric).should be_true }
-  end
+  # describe "#coerce" do
+  #   it { coercer.coerce("1", "Numeric?").is_a?(PG::Numeric).should be_true }
+  # end
 
   describe "#to_numeric" do
     it { coercer.to_numeric("1").to_s.should eq("1") }

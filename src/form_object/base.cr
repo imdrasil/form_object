@@ -38,14 +38,34 @@ module FormObject
     end
 
     getter resource : T
-    private getter coercer : Coercer
 
-    def initialize(@resource, coercer = Coercer.new)
-      super(coercer)
+    def initialize(@resource)
+      super()
     end
 
     def persist
-      resource.save
+      resource.save.tap do |state|
+        next unless state
+        persist_nested
+      end
+    end
+
+    def persist_nested; end
+
+    def self.human_attribute_name(attr)
+      T.human_attribute_name(attr)
+    end
+
+    def self.all
+      T.all
+    end
+
+    def new_record?
+      resource.new_record?
+    end
+
+    def changed?
+      resource.changed?
     end
 
     macro inherited

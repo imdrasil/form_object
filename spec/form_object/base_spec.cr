@@ -2,14 +2,39 @@ require "../spec_helper"
 
 module H::Base
   h = self
+
+  class AddressForm < FormObject::Base(Address)
+    attr :str, String, origin: :street
+    attr :main, Bool
+  end
+
   class ContactForm < CF
     attr :name, String
     attr :sex, String, origin: :gender
     attr :count, Int32, virtual: true
     attr :_deleted, Bool?, virtual: true
 
-    object :address, Address do
-      # attr :str, String, origin: :street
+    object :address, Address, AddressForm, populator: :populate_address
+
+    def populate_address(model, **opts)
+      model || self.address = Address.new({contact_id: resource.id})
+    end
+  end
+
+  class ContactWithCollectionForm < CF
+    attr :name, String
+    attr :sex, String, origin: :gender
+
+    collection :addresses, Address, AddressForm, populator: :populate_address_collection
+
+    def populate_address_collection(collection, index, **opts)
+      if collection[index]?
+        collection[index]
+      else
+        form = AddressForm.new(Address.new({contact_id: resource.id}))
+        addresses << form
+        form
+      end
     end
   end
 
@@ -85,7 +110,405 @@ module H::Base
         c = Factory.build_contact
         f = ContactWithVirtualRealField.new(c)
 
-        f.gender?.should be_nil
+        f.gender.should be_nil
+      end
+
+      it "creates nested form object" do
+        c = Factory.build_contact
+        a = Factory.build_address
+        c.append_address a
+        f = ContactForm.new(c)
+        f.address!.resource.should eq(a)
+      end
+
+      it "creates collection of nested form objects" do
+        c = Factory.build_contact
+        a = Factory.build_address
+        c.append_addresses a
+        f = ContactWithCollectionForm.new(c)
+        f.addresses[0].resource.should eq(a)
+      end
+    end
+
+    describe ".read_query_params" do
+      context "with extra field" do
+        it do
+          r = json_data({} of String => String, [
+            ["name", "name"],
+            ["sex", "male"],
+            ["count", "3"],
+            ["_deleted", "0"],
+            ["extra_field", "1"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_query_params(r, c)
+          c.properties.should eq({ "name" => "name", "sex" => "male", "count" => 3, "_deleted" => false })
+        end
+      end
+
+      context "with missing fields" do
+        it do
+          r = json_data({} of String => String, [
+            ["name", "name"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_query_params(r, c)
+          c.properties.should eq({ "name" => "name" })
+        end
+      end
+
+      context "with nested object" do
+        it do
+          r = json_data({} of String => String, [
+            ["name", "name"],
+            ["address[str]", "some name"],
+            ["address[main]", "0"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_query_params(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.objects.size.should eq(1)
+          c.objects["address"].properties.should eq({ "str" => "some name", "main" => false })
+        end
+      end
+
+      context "with nested collection" do
+        it do
+          r = json_data({} of String => String, [
+            ["name", "name"],
+            ["addresses[][str]", "some name"],
+            ["addresses[][main]", "0"]
+          ])
+          c = FormObject::Context.new
+          ContactWithCollectionForm.read_query_params(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.collections.size.should eq(1)
+          collection =  c.collections["addresses"]
+          collection.size.should eq(1)
+          collection[0].properties.should eq({ "str" => "some name", "main" => false })
+        end
+
+        context "with non-direct order" do
+          it do
+            r = json_data({} of String => String, [
+              ["addresses[][str]", "name1"],
+              ["addresses[][main]", "1"],
+              ["name", "name"],
+              ["addresses[][main]", "0"],
+              ["addresses[][str]", "name2"]
+            ])
+            c = FormObject::Context.new
+            ContactWithCollectionForm.read_query_params(r, c)
+            c.properties.should eq({ "name" => "name" })
+            c.collections.size.should eq(1)
+            collection =  c.collections["addresses"]
+            collection.size.should eq(2)
+            collection[0].properties.should eq({ "str" => "name1", "main" => true })
+            collection[1].properties.should eq({ "str" => "name2", "main" => false })
+          end
+        end
+      end
+
+      describe "inheritance" do
+        it do
+          r = json_data({} of String => String, [
+            ["name", "name"],
+            ["gender", "gender"]
+          ])
+          ChildContactForm.parse(r).properties.should eq({ "name" => "name", "gender" => "gender" })
+        end
+      end
+    end
+
+    describe ".read_url_encoded_form" do
+      context "with extra field" do
+        it do
+          r = url_encoded_form_data([
+            ["name", "name"],
+            ["sex", "male"],
+            ["count", "3"],
+            ["_deleted", "0"],
+            ["extra_field", "1"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_url_encoded_form(r, c)
+          c.properties.should eq({ "name" => "name", "sex" => "male", "count" => 3, "_deleted" => false })
+        end
+      end
+
+      context "with missing fields" do
+        it do
+          r = url_encoded_form_data([
+            ["name", "name"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_url_encoded_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+        end
+      end
+
+      context "with nested object" do
+        it do
+          r = url_encoded_form_data([
+            ["name", "name"],
+            ["address[str]", "some name"],
+            ["address[main]", "0"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_url_encoded_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.objects.size.should eq(1)
+          c.objects["address"].properties.should eq({ "str" => "some name", "main" => false })
+        end
+      end
+
+      context "with nested collection" do
+        it do
+          r = url_encoded_form_data([
+            ["name", "name"],
+            ["addresses[][str]", "some name"],
+            ["addresses[][main]", "0"]
+          ])
+          c = FormObject::Context.new
+          ContactWithCollectionForm.read_url_encoded_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.collections.size.should eq(1)
+          collection =  c.collections["addresses"]
+          collection.size.should eq(1)
+          collection[0].properties.should eq({ "str" => "some name", "main" => false })
+        end
+
+        context "with non-direct order" do
+          it do
+            r = url_encoded_form_data([
+              ["addresses[][str]", "name1"],
+              ["addresses[][main]", "1"],
+              ["name", "name"],
+              ["addresses[][main]", "0"],
+              ["addresses[][str]", "name2"]
+            ])
+            c = FormObject::Context.new
+            ContactWithCollectionForm.read_url_encoded_form(r, c)
+            c.properties.should eq({ "name" => "name" })
+            c.collections.size.should eq(1)
+            collection =  c.collections["addresses"]
+            collection.size.should eq(2)
+            collection[0].properties.should eq({ "str" => "name1", "main" => true })
+            collection[1].properties.should eq({ "str" => "name2", "main" => false })
+          end
+        end
+      end
+
+      describe "inheritance" do
+        it do
+          r = url_encoded_form_data([
+            ["name", "name"],
+            ["gender", "gender"]
+          ])
+          ChildContactForm.parse(r).properties.should eq({ "name" => "name", "gender" => "gender" })
+        end
+      end
+    end
+
+    describe ".read_multipart_form" do
+      context "with extra field" do
+        it do
+          r = form_data([
+            ["name", "name"],
+            ["sex", "male"],
+            ["count", "3"],
+            ["_deleted", "0"],
+            ["extra_field", "1"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_multipart_form(r, c)
+          c.properties.should eq({ "name" => "name", "sex" => "male", "count" => 3, "_deleted" => false })
+        end
+      end
+
+      context "with missing fields" do
+        it do
+          r = form_data([
+            ["name", "name"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_multipart_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+        end
+      end
+
+      context "with nested object" do
+        it do
+          r = form_data([
+            ["name", "name"],
+            ["address[str]", "some name"],
+            ["address[main]", "0"]
+          ])
+          c = FormObject::Context.new
+          ContactForm.read_multipart_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.objects.size.should eq(1)
+          c.objects["address"].properties.should eq({ "str" => "some name", "main" => false })
+        end
+      end
+
+      context "with nested collection" do
+        it do
+          r = form_data([
+            ["name", "name"],
+            ["addresses[][str]", "some name"],
+            ["addresses[][main]", "0"]
+          ])
+          c = FormObject::Context.new
+          ContactWithCollectionForm.read_multipart_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.collections.size.should eq(1)
+          collection =  c.collections["addresses"]
+          collection.size.should eq(1)
+          collection[0].properties.should eq({ "str" => "some name", "main" => false })
+        end
+
+        context "with non-direct order" do
+          it do
+            r = form_data([
+              ["addresses[][str]", "name1"],
+              ["addresses[][main]", "1"],
+              ["name", "name"],
+              ["addresses[][main]", "0"],
+              ["addresses[][str]", "name2"]
+            ])
+            c = FormObject::Context.new
+            ContactWithCollectionForm.read_multipart_form(r, c)
+            c.properties.should eq({ "name" => "name" })
+            c.collections.size.should eq(1)
+            collection =  c.collections["addresses"]
+            collection.size.should eq(2)
+            collection[0].properties.should eq({ "str" => "name1", "main" => true })
+            collection[1].properties.should eq({ "str" => "name2", "main" => false })
+          end
+        end
+      end
+
+      describe "inheritance" do
+        it do
+          r = form_data([
+            ["name", "name"],
+            ["gender", "gender"]
+          ])
+          ChildContactForm.parse(r).properties.should eq({ "name" => "name", "gender" => "gender" })
+        end
+      end
+    end
+
+    describe ".read_json_form" do
+      context "with extra field" do
+        it do
+          r = json_data({
+            "name" => "name",
+            "sex" => "male",
+            "count" => 3,
+            "_deleted" => false,
+            "extra_field" => 1
+          })
+          c = FormObject::Context.new
+          ContactForm.read_json_form(r, c)
+          c.properties.should eq({ "name" => "name", "sex" => "male", "count" => 3, "_deleted" => false })
+        end
+      end
+
+      context "with missing fields" do
+        it do
+          r = json_data({
+            "name" => "name"
+          })
+          c = FormObject::Context.new
+          ContactForm.read_json_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+        end
+      end
+
+      context "with nested object" do
+        it do
+          r = json_data({
+            "name" => "name",
+            "address" => {
+              "str" => "some name",
+              "main" => false
+            }
+          })
+          c = FormObject::Context.new
+          ContactForm.read_json_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.objects.size.should eq(1)
+          c.objects["address"].properties.should eq({ "str" => "some name", "main" => false })
+        end
+      end
+
+      context "with nested collection" do
+        it do
+          r = json_data({
+            "name" => "name",
+            "addresses" => [{ "str" => "some name", "main" => false }]
+          })
+          c = FormObject::Context.new
+          ContactWithCollectionForm.read_json_form(r, c)
+          c.properties.should eq({ "name" => "name" })
+          c.collections.size.should eq(1)
+          collection =  c.collections["addresses"]
+          collection.size.should eq(1)
+          collection[0].properties.should eq({ "str" => "some name", "main" => false })
+        end
+
+        context "with multiple records" do
+          it do
+            r = json_data({
+              "addresses" => [
+                { "str" => "name1", "main" => true },
+                { "str" => "name2", "main" => false }
+              ],
+              "name" => "name",
+            })
+            c = FormObject::Context.new
+            ContactWithCollectionForm.read_json_form(r, c)
+            c.properties.should eq({ "name" => "name" })
+            c.collections.size.should eq(1)
+            collection =  c.collections["addresses"]
+            collection.size.should eq(2)
+            collection[0].properties.should eq({ "str" => "name1", "main" => true })
+            collection[1].properties.should eq({ "str" => "name2", "main" => false })
+          end
+        end
+
+        it "parses non-root object" do
+          r = json_data({
+            links: {} of String => String,
+            contact: {
+              links: %w(asd),
+              data: {
+                name: "name",
+                sex: "male",
+                count: 3,
+                _deleted: false
+              }
+            },
+            address: {
+              str: "asd"
+            }
+          })
+
+          c = ContactForNonRootJSONForm.parse(r)
+          c.properties.should eq({ "name" => "name", "sex" => "male", "count" => 3, "_deleted" => false })
+        end
+      end
+
+      describe "inheritance" do
+        it do
+          r = json_data({
+            "name" => "name",
+            "gender" => "gender"
+          })
+          ChildContactForm.parse(r).properties.should eq({ "name" => "name", "gender" => "gender" })
+        end
       end
     end
 
@@ -130,6 +553,36 @@ module H::Base
         c.gender.should eq("female")
       end
 
+      describe "nested object" do
+        it "assigns attributes for nested object" do
+          c = Factory.build_contact
+          f = ContactForm.new(c)
+
+          f.verify(form_data([
+            ["name", "name"],
+            ["sex", "male"],
+            ["count", "1"],
+            ["address[str]", "some specific street"]
+          ]))
+          f.address!.str.should eq("some specific street")
+        end
+      end
+
+      describe "nested collection" do
+        it "assigns attributes to nested collection" do
+          c = Factory.build_contact
+          f = ContactWithCollectionForm.new(c)
+
+          f.verify(form_data([
+            ["name", "name"],
+            ["sex", "male"],
+            ["count", "1"],
+            ["addresses[][str]", "some specific street"]
+          ]))
+          f.addresses[0].str.should eq("some specific street")
+        end
+      end
+
       context "when data is valid" do
         it do
           c = Factory.build_contact
@@ -143,107 +596,6 @@ module H::Base
           c = Factory.build_contact
           f = ContactForm.new(c)
           f.verify(h.invalid_data).should be_false
-        end
-      end
-
-      context "with url encoded form" do
-        it do
-          c = Factory.build_contact
-          f = ContactForm.new(c)
-          r = url_encoded_form_data([
-            ["name", "name"],
-            ["sex", "male"],
-            ["count", "3"],
-            ["_deleted", "0"]
-          ])
-
-          f.verify(r)
-          f.name.should eq("name")
-          f.sex.should eq("male")
-          f.count.should eq(3)
-          f._deleted.should be_false
-        end
-      end
-
-      context "with query parameters" do
-        it do
-          c = Factory.build_contact
-          f = ContactForm.new(c)
-          r = json_data({} of String => String, [
-            ["name", "name"],
-            ["sex", "male"],
-            ["count", "3"],
-            ["_deleted", "0"]
-          ])
-
-          f.verify(r)
-          f.name.should eq("name")
-          f.sex.should eq("male")
-          f.count.should eq(3)
-          f._deleted.should be_false
-        end
-      end
-
-      context "with json" do
-        it do
-          c = Factory.build_contact
-          f = ContactForm.new(c)
-          r = json_data({
-            name: "name",
-            sex: "male",
-            count: 3,
-            _deleted: false
-          })
-
-          f.verify(r)
-          f.name.should eq("name")
-          f.sex.should eq("male")
-          f.count.should eq(3)
-          f._deleted.should be_false
-        end
-
-        it "parses non-root object" do
-          c = Factory.build_contact
-          f = ContactForNonRootJSONForm.new(c)
-          r = json_data({
-            links: {} of String => String,
-            contact: {
-              links: %w(asd),
-              data: {
-                name: "name",
-                sex: "male",
-                count: 3,
-                _deleted: false
-              }
-            },
-            address: {
-              str: "asd"
-            }
-          })
-
-          f.verify(r)
-          f.name.should eq("name")
-          f.sex.should eq("male")
-          f.count.should eq(3)
-          f._deleted.should be_false
-        end
-
-        it "ignores extra fields" do
-          c = Factory.build_contact
-          f = ContactForm.new(c)
-          r = json_data({
-            name: "name",
-            second_name: "Arsen",
-            sex: "male",
-            count: 3,
-            _deleted: false
-          })
-
-          f.verify(r)
-          f.name.should eq("name")
-          f.sex.should eq("male")
-          f.count.should eq(3)
-          f._deleted.should be_false
         end
       end
 
@@ -281,7 +633,7 @@ module H::Base
         end
       end
 
-      it "reverifies data" do
+      it "reverifies" do
         c = Factory.build_contact
         f = ContactWithValidationForm.new(c)
         f.verify(form_data([["count", "2"]]))
@@ -338,9 +690,65 @@ module H::Base
         f = ContactForm.new(c)
         data = form_data([["sex", "male"]])
         f.verify(data)
-        f.save
+        f.save.should be_true
 
         c.new_record?.should be_false
+      end
+
+      it "saves nested object" do
+        # NOTE: parent object should exist
+        c = Factory.create_contact
+        r = form_data([
+          ["name", "name"],
+          ["count", "2"],
+          ["address[str]", "street 1"],
+          ["address[main]", "0"]
+        ])
+        f = ContactForm.new(c)
+        f.verify(r)
+        f.save
+
+        c.address_reload.should_not be_nil
+      end
+
+      it "saves nested collection" do
+        c = Factory.create_contact
+        r = form_data([
+          ["name", "name"],
+          ["count", "2"],
+          ["addresses[][str]", "street 1"],
+          ["addresses[][main]", "0"]
+        ])
+        f = ContactWithCollectionForm.new(c)
+        f.verify(r)
+        f.save
+
+        c.addresses_reload.empty?.should be_false
+        c.addresses[0].new_record?.should be_false
+      end
+
+      context "with invalid nested object" do
+        pending "add"
+
+
+      # NOTE: invalid nested objects will be ignored
+      # it "saves nested object" do
+      #   c = Factory.build_contact
+      #   r = form_data([
+      #     ["name", "name"],
+      #     ["count", "2"],
+      #     ["address[str]", "some name"],
+      #     ["address[main]", "0"]
+      #   ])
+      #   f = ContactForm.new(c)
+      #   f.verify(r)
+      #   f.save
+
+      #   puts f.inspect
+      #   puts Address.all.count
+      #   c.address_reload
+      #   c.address.should_not be_nil
+      # end
       end
     end
   end

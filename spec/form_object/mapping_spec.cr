@@ -1,6 +1,18 @@
 require "../spec_helper"
 
 module H::Mapping
+  class AddressForm < FormObject::Base(Address)
+    attr :str, String, origin: :street
+  end
+
+  class ContactWithAddressForm < CF
+    object :address, Address, AddressForm
+  end
+
+  class ContactWithCollectionForm < CF
+    collection :addresses, Address
+  end
+
   class ContactForm < CF
     attr :name, String
     attr :gender, String
@@ -53,20 +65,20 @@ module H::Mapping
     end
 
     describe ".attr" do
-      describe "#attribute" do
+      describe "#attribute!" do
         it "performs nil assertion" do
           c = Factory.build_contact(name: nil)
           data = form_data([["sex", ""]])
           f = ContactForm.new(c)
           f.verify(data)
 
-          expect_raises(Exception, "Nil assertion failed") do
-            f.name
+          expect_raises(FormObject::NotAssignedError) do
+            f.name!
           end
         end
       end
 
-      describe "#attribute?" do
+      describe "#attribute" do
         it "returns value as is" do
           c = Factory.build_contact(name: nil)
           data = form_data([
@@ -75,7 +87,7 @@ module H::Mapping
           f = ContactForm.new(c)
           f.verify(data)
 
-          f.name?.should be_nil
+          f.name.should be_nil
         end
       end
 
@@ -99,16 +111,6 @@ module H::Mapping
           end
         end
 
-        context "with JSON::PullParser" do
-          pending "" do
-          end
-        end
-
-        context "with HTTP::FormData::Part" do
-          pending "" do
-          end
-        end
-
         context "with defined type" do
           it do
             c = Factory.build_contact(name: nil)
@@ -118,6 +120,142 @@ module H::Mapping
             f.count.should eq(2)
           end
         end
+      end
+    end
+
+    describe ".object" do
+      describe "#object!" do
+        it "performs nil assertion" do
+          f = ContactWithAddressForm.new(Factory.build_contact)
+
+          expect_raises(FormObject::NotAssignedError) do
+            f.address!
+          end
+        end
+      end
+
+      describe "#object" do
+        it "returns value as is" do
+          f = ContactWithAddressForm.new(Factory.build_contact)
+
+          f.address.should be_nil
+        end
+      end
+
+      describe "#object=" do
+        context "with model" do
+          it "wraps it into form object" do
+            c = Factory.build_contact
+            a = Factory.build_address
+
+            f = ContactWithAddressForm.new(c)
+
+            f.address = a
+            f.address!.resource.should eq(a)
+          end
+        end
+
+        context "with form object" do
+          it do
+            c = Factory.build_contact
+            a = Factory.build_address
+            f = ContactWithAddressForm.new(c)
+
+            f.address = AddressForm.new(a)
+            f.address!.resource.should eq(a)
+          end
+        end
+      end
+
+      context "without form_class" do
+        pending "add"
+      end
+
+      context "with origin" do
+        pending "add"
+      end
+
+      context "without populator" do
+        pending "add"
+      end
+
+      context "without save" do
+        pending "add"
+      end
+    end
+
+    describe ".collection" do
+      describe "#collection!" do
+        it "returns empty array" do
+          f = ContactWithCollectionForm.new(Factory.build_contact)
+
+          f.addresses.should eq([] of AddressForm)
+        end
+      end
+
+      describe "#collection" do
+        it "returns value as is" do
+          f = ContactWithCollectionForm.new(Factory.build_contact)
+
+          f.addresses.should eq([] of AddressForm)
+        end
+      end
+
+      describe "#collection=" do
+        context "with array of model" do
+          it "wraps it into array of form object" do
+            c = Factory.build_contact
+            a = Factory.build_address
+
+            f = ContactWithCollectionForm.new(c)
+
+            f.addresses = [a]
+            f.addresses[0].resource.should eq(a)
+          end
+        end
+
+        context "with form object array" do
+          it do
+            c = Factory.build_contact
+            a = Factory.build_address
+            f = ContactWithCollectionForm.new(c)
+
+            f.addresses = [AddressForm.new(a)]
+            f.addresses[0].resource.should eq(a)
+          end
+        end
+      end
+
+      describe "#add_collection" do
+        it "adds given object to existing array" do
+          c = Factory.build_contact
+          a = Factory.build_address
+          f = ContactWithCollectionForm.new(c)
+
+          f.addresses = [AddressForm.new(a)]
+          f.addresses[0].resource.should eq(a)
+        end
+      end
+
+      context "without form_class" do
+        it "creates form of correct class" do
+          c = Factory.build_contact
+          f = ContactWithCollectionForm.new(c)
+          f.add_addresses(Factory.build_address)
+          f.addresses[0].is_a?(AddressForm).should be_true
+        end
+      end
+
+      context "with origin" do
+        pending "add"
+      end
+
+      context "without populator" do
+        pending "add"
+      end
+
+      context "without save" do
+        pending "add"
       end
     end
   end
