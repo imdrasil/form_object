@@ -1,9 +1,8 @@
 require "spec"
-require "./support/jennifer"
+
+require "./setup.cr"
 require "./support/models"
 require "./support/factories"
-
-require "../src/form_object"
 
 I18n.init
 

@@ -1,4 +1,4 @@
-# FormObject
+# FormObject [![Build Status](https://travis-ci.org/imdrasil/form_object.svg)](https://travis-ci.org/imdrasil/form_object) [![Latest Release](https://img.shields.io/github/release/imdrasil/form_object.svg)](https://github.com/imdrasil/form_object/releases) [![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://imdrasil.github.io/form_object/versions)
 
 This shard gives you an opportunity to separate form data from your model. Also you can move ny data-specific validation to form object level and be free from coercing data from the request instance - it will take care of it.
 
