@@ -337,6 +337,7 @@ module FormObject
                 self.{{key.id}} = value.as({{value[:type].id}})
               {% end %}
             {% end %}
+            else
             end
           end
 
@@ -406,6 +407,7 @@ module FormObject
               context.set_field({{_key}}, coerce_{{key.id}}(value).as({{value[:type].id}}))
             {% end %}
           {% end %}
+          else
           end
         end
 
@@ -425,6 +427,7 @@ module FormObject
               context.set_field({{_key}}, coerce_{{key.id}}(pull).as({{value[:type].id}}))
             {% end %}
           {% end %}
+          else
           end
         end
 

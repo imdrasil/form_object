@@ -100,6 +100,7 @@ module FormObject
         read_multipart_form(request, context)
       when /^application\/json/
         read_json_form(request, context)
+      else
       end
       context
     end

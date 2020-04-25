@@ -20,11 +20,11 @@ describe FormObject::Coercer do
   end
 
   describe "#to_time" do
-    it { coercer.to_time("2010-10-10").should eq(Time.new(2010, 10, 10)) }
-    it { coercer.to_time("2010-10-10 20:10:10").should eq(Time.new(2010, 10, 10, 20, 10, 10)) }
+    it { coercer.to_time("2010-10-10").should eq(Time.local(2010, 10, 10)) }
+    it { coercer.to_time("2010-10-10 20:10:10").should eq(Time.local(2010, 10, 10, 20, 10, 10)) }
 
     it "ignores given time zone" do
-      coercer.to_time("2010-10-10 20:10:10 +01:00").should eq(Time.new(2010, 10, 10, 20, 10, 10, location: local_time_zone))
+      coercer.to_time("2010-10-10 20:10:10 +01:00").should eq(Time.local(2010, 10, 10, 20, 10, 10, location: local_time_zone))
     end
   end
 

@@ -1,7 +1,3 @@
-require "http/request"
-require "http/formdata"
-require "http/multipart"
-
 require "./form_object/http"
 
 require "./form_object/exceptions"
